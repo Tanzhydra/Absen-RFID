@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+  <title>Dashboard Admin Absensi RFID</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 10px; /* Padding lebih kecil untuk mobile */
+      background-color: #f4f7f6;
+      color: #333;
+      margin: 0;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: auto;
+      background-color: #ffffff;
+      padding: 20px; /* Padding lebih kecil */
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    h2 {
+      color: #2c3e50;
+      border-bottom: 3px solid #3498db;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+
+    #statusText {
+      font-size: 1.1em;
+      color: #7f8c8d;
+      margin-bottom: 15px;
+      font-weight: 500;
+    }
+
+    /* Membungkus tabel agar bisa discroll horizontal di layar kecil */
+    .table-wrapper {
+      overflow-x: auto; 
+    }
+
+    table {
+      width: 100%;
+      min-width: 600px; /* Lebar minimum untuk mencegah kolaps total */
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-top: 10px;
+      overflow: hidden;
+      border-radius: 8px;
+    }
+
+    thead th {
+      background-color: #3498db;
+      color: white;
+      padding: 12px 10px; /* Padding lebih kecil */
+      text-align: left;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.8em; /* Font lebih kecil */
+    }
+
+    tbody tr {
+      background-color: #fff;
+      transition: background-color 0.3s ease;
+    }
+
+    tbody tr:nth-child(even) {
+      background-color: #ecf0f1;
+    }
+
+    tbody tr:hover {
+      background-color: #dbe4f0;
+    }
+
+    td {
+      border-bottom: 1px solid #ddd;
+      padding: 10px; /* Padding lebih kecil */
+      color: #555;
+      font-size: 0.85em; /* Font lebih kecil */
+      white-space: nowrap; /* Mencegah waktu/UID patah baris */
+    }
+
+    /* Penyesuaian Style Kolom untuk Data Mahasiswa */
+    td:nth-child(2) { 
+      font-weight: 600;
+      color: #2c3e50;
+    }
+    td:nth-child(3) {
+      font-weight: bold;
+      color: #e74c3c; /* UID Kartu */
+      font-family: 'Courier New', Courier, monospace;
+    }
+    td:nth-child(4) {
+      color: #2980b9; /* Waktu Absen */
+    }
+
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Styling untuk tombol di mobile */
+    .refresh-button {
+      background-color: #2ecc71;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1em;
+      margin-top: 15px;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+      .container {
+        padding: 10px;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      h2 {
+        font-size: 1.5em;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h2>📝 Data Absensi RFID Supabase</h2>
+    <p id="statusText">Memuat data...</p>
+
+    <button class="refresh-button" onclick="fetchAttendance()">🔄 Refresh Data</button>
+
+    <div class="table-wrapper">
+      <table id="attendanceTable">
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>Nama Mahasiswa</th>
+            <th>UID Kartu</th>
+            <th>Waktu Absen</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>
