@@ -1,7 +1,7 @@
 // ============================
 // KONFIGURASI SUPABASE
 // ============================
-const supabaseUrl = 'https://wzwwlzsprqenmneneuim.supabase.co';
+const supabaseUrl = 'https://wzwwlzsprqeneneuim.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6d3dsenNwcnFlbm1uZW5ldWltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4Mjc3NjMsImV4cCI6MjA3ODQwMzc2M30.fj5Cx3yhaIZgVX5hwm1bTjTvfI7gHOhMiJHUhvqmY5A';
 
 // Pastikan SDK sudah dimuat sebelum dipakai
@@ -15,19 +15,21 @@ const tableBody = document.getElementById('tableBody');
 const statusText = document.getElementById('statusText');
 
 // ============================
-// FUNGSI AMBIL DATA ABSENSI DENGAN JOIN
+// FUNGSI AMBIL DATA ABSENSI DENGAN JOIN (Auto-Refresh)
 // ============================
 async function fetchAttendance() {
+  // Tampilkan pesan loading
   tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Memuat data...</td></tr>';
   statusText.textContent = 'Memuat data dari server...';
 
-  // Query: Mengambil data dari 'absen' DAN melakukan JOIN ke 'mahasiswa'
+  // Query: Mengambil data absensi, melakukan JOIN ke tabel 'mahasiswa'
+  // dan memfilter/mengurutkan waktu_absen.
   const { data, error } = await supabaseClient
     .from('absen')
-    // Select: Ambil uid_kartu dan waktu_absen dari tabel absen,
-    // serta nama dan nrp dari tabel 'mahasiswa' yang berelasi
+    // SELECT: Ambil uid_kartu, waktu_absen, dan kolom 'nama'/'nrp' dari tabel mahasiswa
     .select('uid_kartu, waktu_absen, mahasiswa(nama, nrp)') 
-    .order('waktu_absen', { ascending: false });
+    .not('waktu_absen', 'is', null) // Filter: Hanya ambil yang waktu absennya TIDAK NULL (absensi sukses)
+    .order('waktu_absen', { ascending: false }); // Urutkan dari yang terbaru
 
   if (error) {
     console.error('Error:', error);
@@ -37,23 +39,25 @@ async function fetchAttendance() {
   }
 
   if (!data || data.length === 0) {
-    statusText.textContent = 'Belum ada data absensi.';
+    statusText.textContent = 'Belum ada catatan absensi untuk sesi ini.';
     tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Belum ada catatan absen.</td></tr>';
     return;
   }
 
   tableBody.innerHTML = '';
-  statusText.textContent = `Total catatan: ${data.length} absen`;
+  statusText.textContent = `Total catatan: ${data.length} absen (Live)`;
 
   let no = 1;
   data.forEach((row) => {
-    // Data Mahasiswa dari Relasi
+    // Penanganan relasi (Supabase mengembalikan relasi Many-to-One langsung)
     const mahasiswaData = row.mahasiswa;
+    
+    // Tentukan Nama dan NRP. Jika mahasiswaData null (UID tidak terdaftar), tampilkan TIDAK TERDAFTAR.
     const nama = mahasiswaData ? `${mahasiswaData.nama} (${mahasiswaData.nrp})` : 'TIDAK TERDAFTAR';
     
     const tr = document.createElement('tr');
     
-    // Format waktu menjadi lokal Indonesia
+    // Format waktu menjadi lokal Indonesia (menggunakan waktu WIB yang sudah dikoreksi Supabase)
     const waktu = new Date(row.waktu_absen).toLocaleString('id-ID', {
       year: 'numeric',
       month: 'short',
@@ -73,8 +77,13 @@ async function fetchAttendance() {
   });
 }
 
+// ============================
+// INITIALIZATION
+// ============================
+
 // Jalankan otomatis saat halaman dimuat
 fetchAttendance();
 
-// Opsional: refresh otomatis tiap 30 detik
-// setInterval(fetchAttendance, 30000);
+// --- PENTING: FITUR AUTO-REFRESH ---
+// Refresh data setiap 5 detik agar data yang masuk dari ESP32 segera terlihat
+setInterval(fetchAttendance, 5000);
