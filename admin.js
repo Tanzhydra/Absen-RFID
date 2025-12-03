@@ -1,7 +1,7 @@
 // ============================
 // KONFIGURASI SUPABASE
 // ============================
-const supabaseUrl = 'https://wzwwlzsprqeneneuim.supabase.co';
+const supabaseUrl = 'https://wzwwlzsprqenmneneuim.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6d3dsenNwcnFlbm1uZW5ldWltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4Mjc3NjMsImV4cCI6MjA3ODQwMzc2M30.fj5Cx3yhaIZgVX5hwm1bTjTvfI7gHOhMiJHUhvqmY5A';
 
 // Pastikan SDK sudah dimuat sebelum dipakai
@@ -15,25 +15,25 @@ const tableBody = document.getElementById('tableBody');
 const statusText = document.getElementById('statusText');
 
 // ============================
-// FUNGSI AMBIL DATA ABSENSI DENGAN JOIN (Auto-Refresh)
+// FUNGSI UTAMA AMBIL DATA ABSENSI
 // ============================
 async function fetchAttendance() {
-  // Tampilkan pesan loading
-  tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Memuat data...</td></tr>';
-  statusText.textContent = 'Memuat data dari server...';
+  // Hanya tampilkan loading jika tabel kosong
+  if (tableBody.innerHTML === '' || tableBody.innerHTML.includes('Memuat data')) {
+    tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Memuat data...</td></tr>';
+  }
+  statusText.textContent = 'Menghubungkan ke Realtime...';
 
   // Query: Mengambil data absensi, melakukan JOIN ke tabel 'mahasiswa'
-  // dan memfilter/mengurutkan waktu_absen.
   const { data, error } = await supabaseClient
     .from('absen')
-    // SELECT: Ambil uid_kartu, waktu_absen, dan kolom 'nama'/'nrp' dari tabel mahasiswa
     .select('uid_kartu, waktu_absen, mahasiswa(nama, nrp)') 
-    .not('waktu_absen', 'is', null) // Filter: Hanya ambil yang waktu absennya TIDAK NULL (absensi sukses)
+    .not('waktu_absen', 'is', null) // Filter: Hanya ambil yang waktu absennya TIDAK NULL
     .order('waktu_absen', { ascending: false }); // Urutkan dari yang terbaru
 
   if (error) {
     console.error('Error:', error);
-    statusText.textContent = '❌ Gagal memuat data. Periksa RLS atau relasi database.';
+    statusText.textContent = '❌ Gagal memuat data. Periksa RLS atau koneksi.';
     tableBody.innerHTML = '<tr><td colspan="4" style="color:red;text-align:center;">Periksa izin RLS (anon key) atau relasi tabel.</td></tr>';
     return;
   }
@@ -44,15 +44,13 @@ async function fetchAttendance() {
     return;
   }
 
+  // UPDATE TABEL
   tableBody.innerHTML = '';
-  statusText.textContent = `Total catatan: ${data.length} absen (Live)`;
+  statusText.textContent = `Total catatan: ${data.length} absen (Real-Time)`;
 
   let no = 1;
   data.forEach((row) => {
-    // Penanganan relasi (Supabase mengembalikan relasi Many-to-One langsung)
     const mahasiswaData = row.mahasiswa;
-    
-    // Tentukan Nama dan NRP. Jika mahasiswaData null (UID tidak terdaftar), tampilkan TIDAK TERDAFTAR.
     const nama = mahasiswaData ? `${mahasiswaData.nama} (${mahasiswaData.nrp})` : 'TIDAK TERDAFTAR';
     
     const tr = document.createElement('tr');
@@ -78,12 +76,36 @@ async function fetchAttendance() {
 }
 
 // ============================
+// FUNGSI REALTIME LISTENER (WebSockets)
+// ============================
+function setupRealtimeListener() {
+    // Subscribe ke channel 'absen_changes'
+    supabaseClient
+        .channel('absen_changes')
+        .on(
+            'postgres_changes',
+            // Mendengarkan SEMUA event (*), di schema 'public', pada tabel 'absen'
+            { event: '*', schema: 'public', table: 'absen' },
+            (payload) => {
+                console.log('Perubahan Realtime Diterima!', payload.eventType);
+                // Ketika ada INSERT (absensi baru) atau DELETE (reset data), panggil fetchAttendance
+                fetchAttendance(); 
+            }
+        )
+        .subscribe();
+    
+    console.log("Realtime Listener aktif dan mendengarkan perubahan pada tabel 'absen'.");
+}
+
+
+// ============================
 // INITIALIZATION
 // ============================
 
-// Jalankan otomatis saat halaman dimuat
+// 1. Ambil data awal saat halaman dimuat
 fetchAttendance();
 
-// --- PENTING: FITUR AUTO-REFRESH ---
-// Refresh data setiap 5 detik agar data yang masuk dari ESP32 segera terlihat
-setInterval(fetchAttendance, 5000);
+// 2. Setup Realtime Listener untuk update instan
+setupRealtimeListener();
+
+// Note: Tidak menggunakan setInterval lagi karena Realtime sudah menangani update instan.
